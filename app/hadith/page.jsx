@@ -13,7 +13,7 @@ export default function HadithPage() {
     const fetchHadith = async () => {
         setLoading(true);
         setError(null);
-        stopSpeech(); // Stop any ongoing speech when fetching new hadith
+        stopSpeech();
         try {
             const response = await fetch("https://random-hadith-generator.vercel.app/bukhari/");
             if (!response.ok) throw new Error("Failed to fetch hadith");
@@ -40,7 +40,6 @@ export default function HadithPage() {
         if (isPlaying) {
             stopSpeech();
         } else {
-            // Create text to read: narrator + hadith text
             let textToRead = "";
             if (hadith.header) {
                 textToRead += hadith.header + ". ";
@@ -48,7 +47,7 @@ export default function HadithPage() {
             textToRead += hadith.hadith_english;
 
             const utterance = new SpeechSynthesisUtterance(textToRead);
-            utterance.rate = 0.9; // Slightly slower for better clarity
+            utterance.rate = 0.9;
             utterance.pitch = 1;
             utterance.volume = 1;
 
@@ -69,39 +68,38 @@ export default function HadithPage() {
     useEffect(() => {
         fetchHadith();
 
-        // Cleanup: stop speech when component unmounts
         return () => {
             window.speechSynthesis.cancel();
         };
     }, []);
 
     return (
-        <div className="min-h-[80vh] flex items-center justify-center p-4">
+        <div className="min-h-[80vh] flex items-center justify-center p-3 sm:p-4">
             <div className="max-w-3xl w-full">
-                <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-3xl shadow-2xl border-2 border-amber-200 overflow-hidden">
+                <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl sm:rounded-3xl shadow-2xl border-2 border-amber-200 overflow-hidden">
                     {/* Header */}
-                    <div className="bg-gradient-to-r from-amber-500 to-orange-600 p-8 text-white">
-                        <div className="flex items-center gap-4 justify-center">
-                            <div className="bg-white/20 p-4 rounded-full backdrop-blur-sm">
-                                <BookOpen size={48} strokeWidth={2.5} />
+                    <div className="bg-gradient-to-r from-amber-500 to-orange-600 p-4 sm:p-6 md:p-8 text-white">
+                        <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-4 justify-center text-center sm:text-left">
+                            <div className="bg-white/20 p-3 sm:p-4 rounded-full backdrop-blur-sm">
+                                <BookOpen size={36} className="sm:w-12 sm:h-12" strokeWidth={2.5} />
                             </div>
                             <div>
-                                <h1 className="text-4xl font-extrabold">Hadith of the Day</h1>
-                                <p className="text-amber-100 mt-1">Sahih al-Bukhari</p>
+                                <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold">Hadith of the Day</h1>
+                                <p className="text-amber-100 mt-1 text-sm sm:text-base">Sahih al-Bukhari</p>
                             </div>
                         </div>
                     </div>
 
                     {/* Content */}
-                    <div className="p-10">
+                    <div className="p-4 sm:p-6 md:p-10">
                         {loading ? (
-                            <div className="flex flex-col items-center justify-center py-20">
+                            <div className="flex flex-col items-center justify-center py-16 sm:py-20">
                                 <Loader2 size={48} className="text-amber-600 animate-spin mb-4" />
-                                <p className="text-slate-600 text-lg">Loading hadith...</p>
+                                <p className="text-slate-600 text-base sm:text-lg">Loading hadith...</p>
                             </div>
                         ) : error ? (
-                            <div className="text-center py-20">
-                                <p className="text-red-600 text-lg mb-4">{error}</p>
+                            <div className="text-center py-16 sm:py-20">
+                                <p className="text-red-600 text-base sm:text-lg mb-4">{error}</p>
                                 <button
                                     onClick={fetchHadith}
                                     className="bg-amber-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-amber-700 transition"
@@ -110,30 +108,30 @@ export default function HadithPage() {
                                 </button>
                             </div>
                         ) : hadith ? (
-                            <div className="space-y-8">
+                            <div className="space-y-4 sm:space-y-6 md:space-y-8">
                                 {/* Hadith Reference & Voice Button */}
-                                <div className="flex items-center justify-between">
-                                    <span className="inline-block bg-amber-200 text-amber-900 px-4 py-2 rounded-full text-sm font-bold">
+                                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4">
+                                    <span className="inline-block bg-amber-200 text-amber-900 px-3 sm:px-4 py-2 rounded-full text-xs sm:text-sm font-bold text-center">
                                         {hadith.refno || `Hadith #${hadith.id}`}
                                     </span>
 
                                     {/* Voice Button */}
                                     <button
                                         onClick={toggleSpeech}
-                                        className={`flex items-center gap-2 px-6 py-3 rounded-full font-semibold transition-all shadow-lg ${isPlaying
+                                        className={`flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-full font-semibold transition-all shadow-lg text-sm sm:text-base ${isPlaying
                                                 ? 'bg-red-500 hover:bg-red-600 text-white'
                                                 : 'bg-emerald-500 hover:bg-emerald-600 text-white'
                                             }`}
                                     >
                                         {isPlaying ? (
                                             <>
-                                                <VolumeX size={20} />
-                                                Stop
+                                                <VolumeX size={18} className="sm:w-5 sm:h-5" />
+                                                <span className="hidden sm:inline">Stop</span>
                                             </>
                                         ) : (
                                             <>
-                                                <Volume2 size={20} />
-                                                Listen
+                                                <Volume2 size={18} className="sm:w-5 sm:h-5" />
+                                                <span className="hidden sm:inline">Listen</span>
                                             </>
                                         )}
                                     </button>
@@ -141,43 +139,44 @@ export default function HadithPage() {
 
                                 {/* Narrator/Header */}
                                 {hadith.header && (
-                                    <div className="bg-emerald-50 border-l-4 border-emerald-500 rounded-lg p-6">
-                                        <p className="text-emerald-900 font-semibold">{hadith.header}</p>
+                                    <div className="bg-emerald-50 border-l-4 border-emerald-500 rounded-lg p-4 sm:p-6">
+                                        <p className="text-emerald-900 font-semibold text-sm sm:text-base break-words">{hadith.header}</p>
                                     </div>
                                 )}
 
                                 {/* English Translation */}
-                                <div className="bg-white rounded-2xl p-8 shadow-sm border border-amber-100">
-                                    <blockquote className="text-lg text-slate-700 leading-relaxed">
+                                <div className="bg-white rounded-xl sm:rounded-2xl p-5 sm:p-6 md:p-8 shadow-sm border border-amber-100">
+                                    <blockquote className="text-base sm:text-lg md:text-xl text-slate-700 leading-relaxed break-words whitespace-pre-wrap">
                                         {hadith.hadith_english}
                                     </blockquote>
                                 </div>
 
                                 {/* Book & Chapter Info */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                                     {hadith.bookName && (
-                                        <div className="bg-amber-100 rounded-xl p-6">
-                                            <p className="text-sm text-amber-900 font-semibold mb-1">Book:</p>
-                                            <p className="text-base text-amber-800">{hadith.bookName.trim()}</p>
+                                        <div className="bg-amber-100 rounded-lg sm:rounded-xl p-4 sm:p-6">
+                                            <p className="text-xs sm:text-sm text-amber-900 font-semibold mb-1">Book:</p>
+                                            <p className="text-sm sm:text-base text-amber-800 break-words">{hadith.bookName.trim()}</p>
                                         </div>
                                     )}
                                     {hadith.chapterName && (
-                                        <div className="bg-amber-100 rounded-xl p-6">
-                                            <p className="text-sm text-amber-900 font-semibold mb-1">Chapter:</p>
-                                            <p className="text-base text-amber-800">{hadith.chapterName}</p>
+                                        <div className="bg-amber-100 rounded-lg sm:rounded-xl p-4 sm:p-6">
+                                            <p className="text-xs sm:text-sm text-amber-900 font-semibold mb-1">Chapter:</p>
+                                            <p className="text-sm sm:text-base text-amber-800 break-words">{hadith.chapterName}</p>
                                         </div>
                                     )}
                                 </div>
 
                                 {/* Next Button */}
-                                <div className="flex justify-center pt-4">
+                                <div className="flex justify-center pt-2 sm:pt-4">
                                     <button
                                         onClick={fetchHadith}
                                         disabled={loading}
-                                        className="bg-gradient-to-r from-amber-500 to-orange-600 text-white px-8 py-4 rounded-full font-bold text-lg hover:from-amber-600 hover:to-orange-700 transition-all shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-3"
+                                        className="bg-gradient-to-r from-amber-500 to-orange-600 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-full font-bold text-base sm:text-lg hover:from-amber-600 hover:to-orange-700 transition-all shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 sm:gap-3"
                                     >
-                                        <RefreshCw size={24} className={loading ? "animate-spin" : ""} />
-                                        Generate New Hadith
+                                        <RefreshCw size={20} className="sm:w-6 sm:h-6" className={loading ? "animate-spin" : ""} />
+                                        <span className="hidden sm:inline">Generate New Hadith</span>
+                                        <span className="sm:hidden">New Hadith</span>
                                     </button>
                                 </div>
                             </div>
