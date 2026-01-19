@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Lightbulb, Loader2 } from "lucide-react";
 
-export default function Quiz() {
+function QuizContent() {
     const { data: session, status } = useSession();
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -30,192 +30,226 @@ export default function Quiz() {
         fetchQuestions();
     }, []);
 
-    // Reset hint and selection on question change
-    useEffect(() => {
-        setHint("");
-        setSelectedAnswer(null);
-    }, [currentQuestion]);
-
     const fetchQuestions = async () => {
         try {
-            const res = await fetch(`/api/quiz/start?category=${category}`);
-            const data = await res.json();
-            if (res.ok) {
-                setQuestions(data.questions);
+            const res = await fetch(`/api/quiz/start${category ? `?category=${category}` : ""}`);
+            if (!res.ok) {
+                const errorData = await res.json();
+                console.error("Error fetching questions:", errorData);
+
+                if (res.status === 404) {
+                    alert(errorData.message || "No more questions available. You've answered all questions!");
+                    router.push("/dashboard");
+                    return;
+                }
+
+                throw new Error(errorData.message || "Failed to fetch questions");
             }
-        } catch (error) {
-            console.error("Failed to fetch questions", error);
-        } finally {
+            const data = await res.json();
+            setQuestions(data.questions);
             setLoading(false);
+        } catch (error) {
+            console.error("Error:", error);
+            alert(error.message || "Failed to load quiz. Please try again.");
+            router.push("/dashboard");
         }
     };
 
-    const handleOptionSelect = (option) => {
-        if (selectedAnswer) return; // Prevent changing answer after selection
+    const handleAnswer = (option) => {
+        if (selectedAnswer !== null) return;
+
+        const currentQ = questions[currentQuestion];
+        const isCorrect = option === currentQ.correctAnswer;
 
         setSelectedAnswer(option);
-        setAnswers({ ...answers, [questions[currentQuestion]._id]: option });
+        setAnswers({ ...answers, [currentQuestion]: option });
 
-        // Check if answer is correct
-        if (option === questions[currentQuestion].correctAnswer) {
+        if (isCorrect) {
             setCorrectCount(correctCount + 1);
         }
     };
 
-    const getHint = async () => {
-        if (hint) return;
-        setHintLoading(true);
-        try {
-            const res = await fetch("/api/hint", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    question: questions[currentQuestion].question,
-                    options: questions[currentQuestion].options
-                }),
-            });
-            const data = await res.json();
-            if (res.ok) setHint(data.hint);
-        } catch (error) {
-            console.error("Failed to get hint");
-        } finally {
-            setHintLoading(false);
-        }
-    };
+    const handleNext = () => {
+        setSelectedAnswer(null);
+        setHint("");
 
-    const handleNext = async () => {
         if (currentQuestion < questions.length - 1) {
             setCurrentQuestion(currentQuestion + 1);
         } else {
-            await handleSubmit();
+            handleSubmit();
         }
     };
 
     const handleSubmit = async () => {
-        setLoading(true);
         try {
             const res = await fetch("/api/quiz/submit", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     answers,
+                    questions,
                     correctCount
                 }),
             });
 
-            if (res.ok) {
-                const result = await res.json();
-                // Redirect to result page with score
-                router.push(`/result?score=${result.score}&total=${result.total}&correct=${correctCount}`);
+            if (!res.ok) {
+                throw new Error("Failed to submit quiz");
             }
+
+            const data = await res.json();
+            router.push(`/result?score=${data.score}&total=${questions.length}`);
         } catch (error) {
-            console.error("Submit failed", error);
+            console.error("Error submitting quiz:", error);
+            alert("Failed to submit quiz. Please try again.");
         }
     };
 
-    if (loading) return <div className="text-center mt-20">Loading Quiz...</div>;
+    const fetchHint = async () => {
+        setHintLoading(true);
+        try {
+            const currentQ = questions[currentQuestion];
+            const res = await fetch("/api/hint", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    question: currentQ.question,
+                    options: currentQ.options,
+                }),
+            });
 
-    if (questions.length === 0) {
+            if (!res.ok) {
+                throw new Error("Failed to fetch hint");
+            }
+
+            const data = await res.json();
+            setHint(data.hint);
+        } catch (error) {
+            console.error("Error fetching hint:", error);
+            setHint("Unable to generate hint. Please try again.");
+        } finally {
+            setHintLoading(false);
+        }
+    };
+
+    if (status === "loading" || loading) {
         return (
-            <div className="text-center mt-20 p-8 max-w-lg mx-auto bg-white rounded-2xl shadow-xl border border-slate-100">
-                <h2 className="text-2xl font-bold text-slate-800 mb-4">Questions Exhausted!</h2>
-                <p className="text-slate-600 mb-6">
-                    You have completed all available questions. We will update more soon!
-                </p>
-                <button
-                    onClick={() => router.push('/dashboard')}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-6 py-3 rounded-lg transition"
-                >
-                    Back to Dashboard
-                </button>
+            <div className="flex items-center justify-center min-h-[60vh]">
+                <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
             </div>
         );
     }
 
-    const question = questions[currentQuestion];
+    if (questions.length === 0) {
+        return (
+            <div className="text-center mt-20">
+                <p className="text-xl text-slate-600">No questions available.</p>
+            </div>
+        );
+    }
 
-    const getOptionStyle = (option) => {
-        if (!selectedAnswer) {
-            // Before selection
-            return "border-slate-200 hover:border-emerald-300 hover:bg-slate-50 text-slate-700";
-        }
-
-        // After selection
-        if (option === question.correctAnswer) {
-            // Correct answer - always green
-            return "border-green-500 bg-green-100 text-green-800";
-        } else if (option === selectedAnswer) {
-            // Wrong selected answer - red
-            return "border-red-500 bg-red-100 text-red-800";
-        } else {
-            // Other options - dimmed
-            return "border-slate-200 bg-slate-50 text-slate-400";
-        }
-    };
+    const currentQ = questions[currentQuestion];
+    const isAnswered = selectedAnswer !== null;
+    const isCorrect = selectedAnswer === currentQ.correctAnswer;
 
     return (
-        <div className="max-w-2xl mx-auto mt-10">
-            <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-semibold text-emerald-800">
-                    Question {currentQuestion + 1} / {questions.length}
-                </h2>
-                <div className="text-sm font-medium text-emerald-600">
+        <div className="max-w-3xl mx-auto">
+            <div className="mb-8 flex justify-between items-center">
+                <h1 className="text-3xl font-bold text-slate-800">
+                    Question {currentQuestion + 1} of {questions.length}
+                </h1>
+                <div className="text-emerald-600 font-semibold text-lg">
                     Correct: {correctCount}
                 </div>
             </div>
 
-            <div className="bg-white p-8 rounded-2xl shadow-lg border border-slate-100 mb-8">
-                <h3 className="text-2xl font-medium text-slate-800 mb-6">
-                    {question.question}
-                </h3>
-
-                {hint && (
-                    <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm flex gap-3 shadow-sm">
-                        <Lightbulb className="flex-shrink-0" size={20} />
-                        <p className="italic">Hint: {hint}</p>
-                    </div>
-                )}
+            <div className="bg-white p-8 rounded-2xl shadow-lg border border-slate-100">
+                <p className="text-xl text-slate-700 mb-8 leading-relaxed">
+                    {currentQ.question}
+                </p>
 
                 <div className="space-y-4">
-                    {question.options.map((option, idx) => (
-                        <button
-                            key={idx}
-                            onClick={() => handleOptionSelect(option)}
-                            disabled={selectedAnswer !== null}
-                            className={`w-full text-left p-4 rounded-xl border-2 transition ${getOptionStyle(option)}`}
-                        >
-                            {option}
-                        </button>
-                    ))}
+                    {currentQ.options.map((option, index) => {
+                        let buttonClass = "w-full text-left p-4 rounded-xl border-2 transition-all font-medium ";
+
+                        if (!isAnswered) {
+                            buttonClass += "border-slate-200 hover:border-emerald-500 hover:bg-emerald-50";
+                        } else {
+                            if (option === currentQ.correctAnswer) {
+                                buttonClass += "border-green-500 bg-green-50 text-green-900";
+                            } else if (option === selectedAnswer) {
+                                buttonClass += "border-red-500 bg-red-50 text-red-900";
+                            } else {
+                                buttonClass += "border-slate-200 opacity-50";
+                            }
+                        }
+
+                        return (
+                            <button
+                                key={index}
+                                onClick={() => handleAnswer(option)}
+                                disabled={isAnswered}
+                                className={buttonClass}
+                            >
+                                {option}
+                            </button>
+                        );
+                    })}
                 </div>
 
-                {selectedAnswer && (
-                    <div className="mt-6 p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
-                        <p className="text-sm font-medium text-emerald-800">
-                            <span className="font-bold">Correct Answer:</span> {question.correctAnswer}
+                {isAnswered && (
+                    <div className={`mt-6 p-4 rounded-xl ${isCorrect ? 'bg-green-50 border-2 border-green-200' : 'bg-red-50 border-2 border-red-200'}`}>
+                        <p className={`font-semibold ${isCorrect ? 'text-green-800' : 'text-red-800'}`}>
+                            {isCorrect ? '✓ Correct!' : '✗ Incorrect'}
                         </p>
+                        {!isCorrect && (
+                            <p className="text-slate-700 mt-2">
+                                The correct answer is: <span className="font-semibold text-green-700">{currentQ.correctAnswer}</span>
+                            </p>
+                        )}
+                    </div>
+                )}
+
+                <div className="mt-8 flex gap-4">
+                    {!isAnswered && (
+                        <button
+                            onClick={fetchHint}
+                            disabled={hintLoading}
+                            className="flex items-center gap-2 px-6 py-3 bg-amber-500 text-white rounded-lg font-semibold hover:bg-amber-600 transition disabled:opacity-50"
+                        >
+                            <Lightbulb size={20} />
+                            {hintLoading ? "Loading..." : "Get Hint"}
+                        </button>
+                    )}
+
+                    {isAnswered && (
+                        <button
+                            onClick={handleNext}
+                            className="px-8 py-3 bg-emerald-600 text-white rounded-lg font-semibold hover:bg-emerald-700 transition"
+                        >
+                            {currentQuestion < questions.length - 1 ? "Next Question" : "Submit Quiz"}
+                        </button>
+                    )}
+                </div>
+
+                {hint && (
+                    <div className="mt-6 p-4 bg-blue-50 border-2 border-blue-200 rounded-xl">
+                        <p className="text-sm font-semibold text-blue-800 mb-2">💡 Hint:</p>
+                        <p className="text-slate-700">{hint}</p>
                     </div>
                 )}
             </div>
-
-            <div className="flex justify-between items-center">
-                <button
-                    onClick={getHint}
-                    disabled={hintLoading || !!hint || selectedAnswer !== null}
-                    className="flex items-center gap-2 text-amber-600 font-medium px-4 py-2 rounded-lg hover:bg-amber-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                    {hintLoading ? <Loader2 className="animate-spin" size={20} /> : <Lightbulb size={20} />}
-                    {hint ? "Hint Revealed" : "Get Hint"}
-                </button>
-
-                <button
-                    onClick={handleNext}
-                    disabled={!selectedAnswer}
-                    className="bg-emerald-600 text-white px-8 py-3 rounded-full font-semibold hover:bg-emerald-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                    {currentQuestion === questions.length - 1 ? "Submit Quiz" : "Next Question"}
-                </button>
-            </div>
         </div>
+    );
+}
+
+export default function Quiz() {
+    return (
+        <Suspense fallback={
+            <div className="flex items-center justify-center min-h-[60vh]">
+                <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
+            </div>
+        }>
+            <QuizContent />
+        </Suspense>
     );
 }
