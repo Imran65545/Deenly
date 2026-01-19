@@ -3,8 +3,9 @@
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Award, RefreshCcw } from "lucide-react";
+import { Suspense } from "react";
 
-export default function Result() {
+function ResultContent() {
     const searchParams = useSearchParams();
     const score = searchParams.get("score");
     const total = searchParams.get("total");
@@ -39,10 +40,11 @@ export default function Result() {
 
                 <div className="space-y-4">
                     <Link
-                        href="/dashboard"
-                        className="block w-full bg-emerald-600 text-white py-3 rounded-lg font-semibold hover:bg-emerald-700 transition"
+                        href="/quiz"
+                        className="flex items-center justify-center gap-2 w-full bg-emerald-600 text-white py-3 rounded-lg font-semibold hover:bg-emerald-700 transition"
                     >
-                        Back to Dashboard
+                        <RefreshCcw size={20} />
+                        Attempt New Quiz
                     </Link>
                     <Link
                         href="/leaderboard"
@@ -50,8 +52,22 @@ export default function Result() {
                     >
                         View Leaderboard
                     </Link>
+                    <Link
+                        href="/dashboard"
+                        className="block w-full text-slate-600 py-3 rounded-lg font-medium hover:bg-slate-50 transition"
+                    >
+                        Back to Dashboard
+                    </Link>
                 </div>
             </div>
         </div>
+    );
+}
+
+export default function Result() {
+    return (
+        <Suspense fallback={<div className="text-center mt-20">Loading results...</div>}>
+            <ResultContent />
+        </Suspense>
     );
 }
