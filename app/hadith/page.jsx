@@ -119,8 +119,8 @@ export default function HadithPage() {
                                     <button
                                         onClick={toggleSpeech}
                                         className={`flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-full font-semibold transition-all shadow-lg text-sm sm:text-base ${isPlaying
-                                                ? 'bg-red-500 hover:bg-red-600 text-white'
-                                                : 'bg-emerald-500 hover:bg-emerald-600 text-white'
+                                            ? 'bg-red-500 hover:bg-red-600 text-white'
+                                            : 'bg-emerald-500 hover:bg-emerald-600 text-white'
                                             }`}
                                     >
                                         {isPlaying ? (
@@ -174,7 +174,7 @@ export default function HadithPage() {
                                         disabled={loading}
                                         className="bg-gradient-to-r from-amber-500 to-orange-600 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-full font-bold text-base sm:text-lg hover:from-amber-600 hover:to-orange-700 transition-all shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 sm:gap-3"
                                     >
-                                        <RefreshCw size={20} className="sm:w-6 sm:h-6" className={loading ? "animate-spin" : ""} />
+                                        <RefreshCw size={20} className={`sm:w-6 sm:h-6 ${loading ? "animate-spin" : ""}`} />
                                         <span className="hidden sm:inline">Generate New Hadith</span>
                                         <span className="sm:hidden">New Hadith</span>
                                     </button>
