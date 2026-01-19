@@ -34,13 +34,14 @@ export async function POST(req) {
 
         console.log("Calculated score:", score, "Correct count from frontend:", correctCount);
 
-        // Update user's total score, correct answers count, and answered questions
+        // Update user's total score, correct answers count, total questions attempted, and answered questions
         const updateResult = await User.findByIdAndUpdate(
             session.user.id,
             {
                 $inc: {
                     totalScore: score,
-                    correctAnswers: correctCount || score
+                    correctAnswers: correctCount || score,
+                    totalQuestionsAttempted: questions.length
                 },
                 $addToSet: { answeredQuestions: { $each: questionIds } }
             },

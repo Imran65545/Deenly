@@ -21,6 +21,7 @@ function QuizContent() {
     const [correctCount, setCorrectCount] = useState(0);
     const [lang, setLang] = useState("en"); // "en" or "hi"
     const [showWelcomeModal, setShowWelcomeModal] = useState(true);
+    const [totalQuestionsAttempted, setTotalQuestionsAttempted] = useState(0);
 
     useEffect(() => {
         if (status === "unauthenticated") {
@@ -30,7 +31,20 @@ function QuizContent() {
 
     useEffect(() => {
         fetchQuestions();
+        fetchUserStats();
     }, []);
+
+    const fetchUserStats = async () => {
+        try {
+            const res = await fetch('/api/user/stats');
+            if (res.ok) {
+                const data = await res.json();
+                setTotalQuestionsAttempted(data.totalQuestionsAttempted || 0);
+            }
+        } catch (error) {
+            console.error("Error fetching user stats:", error);
+        }
+    };
 
     const fetchQuestions = async () => {
         try {
@@ -216,6 +230,9 @@ function QuizContent() {
                     {lang === "hi" ? "प्रश्न" : "Question"} {currentQuestion + 1} / {questions.length}
                 </h1>
                 <div className="flex items-center gap-4">
+                    <div className="text-blue-600 font-semibold text-lg">
+                        {lang === "hi" ? "कुल प्र: " : "Total Q: "} {totalQuestionsAttempted}
+                    </div>
                     <div className="text-emerald-600 font-semibold text-lg">
                         {lang === "hi" ? "सही: " : "Correct: "} {correctCount}
                     </div>
