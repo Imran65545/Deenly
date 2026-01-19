@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+
+export const dynamic = 'force-dynamic';
 import Groq from "groq-sdk";
 
 export async function POST(req) {
