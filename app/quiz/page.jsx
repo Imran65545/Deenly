@@ -71,32 +71,20 @@ function QuizContent() {
         }
     };
 
-    const handleAnswer = (option) => {
+    const handleAnswer = (optionIndex) => {
         if (selectedAnswer !== null) return;
 
         const currentQ = questions[currentQuestion];
 
-        // Get the current options being displayed (English or Hindi)
-        const currentOptions = lang === "hi" && currentQ.options_hi && currentQ.options_hi.length > 0
-            ? currentQ.options_hi
-            : currentQ.options;
+        // Find the correct answer index in the English options (stable reference)
+        const correctIndex = currentQ.options.indexOf(currentQ.correctAnswer);
 
-        // Get the correct answer for the current language
-        const correctAnswerText = lang === "hi" && currentQ.correctAnswer_hi
-            ? currentQ.correctAnswer_hi
-            : currentQ.correctAnswer;
+        // Check if selected index matches correct index
+        const isCorrect = optionIndex === correctIndex;
 
-        // Find the index of the selected option in the current language options
-        const selectedIndex = currentOptions.indexOf(option);
-
-        // Find the index of the correct answer in the current language options
-        const correctIndex = currentOptions.indexOf(correctAnswerText);
-
-        // Check if the selected index matches the correct index
-        const isCorrect = selectedIndex !== -1 && selectedIndex === correctIndex;
-
-        setSelectedAnswer(option);
-        setAnswers({ ...answers, [currentQ._id]: option });
+        // Store the INDEX, not the text
+        setSelectedAnswer(optionIndex);
+        setAnswers({ ...answers, [currentQ._id]: optionIndex });
 
         if (isCorrect) {
             setCorrectCount(correctCount + 1);
@@ -171,8 +159,8 @@ function QuizContent() {
         if (hint) {
             fetchHint();
         }
-        // Reset selected answer when language changes to prevent display issues
-        setSelectedAnswer(null);
+        // Note: We do NOT reset selectedAnswer here anymore
+        // This prevents users from re-answering after switching languages
     }, [lang]);
 
     // Helper to get text based on language
@@ -208,12 +196,22 @@ function QuizContent() {
 
     const currentQ = questions[currentQuestion];
     const isAnswered = selectedAnswer !== null;
-    const isCorrect = isAnswered && selectedAnswer === (lang === "hi" && currentQ.correctAnswer_hi ? currentQ.correctAnswer_hi : currentQ.correctAnswer);
 
-    // We need to know which option is correct for display
-    const correctOptionText = lang === "hi" && currentQ.correctAnswer_hi ? currentQ.correctAnswer_hi : currentQ.correctAnswer;
+    // Get correct answer index from English options (stable reference)
+    const correctIndex = currentQ.options.indexOf(currentQ.correctAnswer);
 
-    const currentOptions = getOptions(currentQ);
+    // Check if answer is correct by comparing indices
+    const isCorrect = isAnswered && selectedAnswer === correctIndex;
+
+    // Get current language options for display
+    const currentOptions = lang === "hi" && currentQ.options_hi && currentQ.options_hi.length > 0
+        ? currentQ.options_hi
+        : currentQ.options;
+
+    // Get correct answer text for display in current language
+    const correctAnswerText = lang === "hi" && currentQ.correctAnswer_hi
+        ? currentQ.correctAnswer_hi
+        : currentQ.correctAnswer;
 
     return (
         <div className="max-w-3xl mx-auto relative">
@@ -278,11 +276,15 @@ function QuizContent() {
                         if (!isAnswered) {
                             buttonClass += "border-slate-200 hover:border-emerald-500 hover:bg-emerald-50";
                         } else {
-                            if (option === correctOptionText) {
+                            // Highlight correct answer (by index)
+                            if (index === correctIndex) {
                                 buttonClass += "border-green-500 bg-green-50 text-green-900";
-                            } else if (option === selectedAnswer) {
+                            }
+                            // Highlight selected answer if wrong (by index)
+                            else if (index === selectedAnswer) {
                                 buttonClass += "border-red-500 bg-red-50 text-red-900";
-                            } else {
+                            }
+                            else {
                                 buttonClass += "border-slate-200 opacity-50";
                             }
                         }
@@ -290,7 +292,7 @@ function QuizContent() {
                         return (
                             <button
                                 key={index}
-                                onClick={() => handleAnswer(option)}
+                                onClick={() => handleAnswer(index)}
                                 disabled={isAnswered}
                                 className={buttonClass}
                             >
@@ -307,7 +309,7 @@ function QuizContent() {
                         </p>
                         {!isCorrect && (
                             <p className="text-slate-700 mt-2">
-                                {lang === "hi" ? "सही उत्तर है: " : "The correct answer is: "} <span className="font-semibold text-green-700">{correctOptionText}</span>
+                                {lang === "hi" ? "सही उत्तर है: " : "The correct answer is: "} <span className="font-semibold text-green-700">{correctAnswerText}</span>
                             </p>
                         )}
                     </div>

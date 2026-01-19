@@ -27,7 +27,10 @@ export async function POST(req) {
         console.log("Questions found:", questions.length);
 
         questions.forEach((q) => {
-            if (answers[q._id] === q.correctAnswer) {
+            const answerIndex = answers[q._id]; // This is now an index number
+            const correctIndex = q.options.indexOf(q.correctAnswer);
+
+            if (answerIndex === correctIndex) {
                 score += 1;
             }
         });
