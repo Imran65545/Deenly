@@ -81,14 +81,19 @@ function QuizContent() {
             ? currentQ.options_hi
             : currentQ.options;
 
-        // Find the index of the selected option
+        // Get the correct answer for the current language
+        const correctAnswerText = lang === "hi" && currentQ.correctAnswer_hi
+            ? currentQ.correctAnswer_hi
+            : currentQ.correctAnswer;
+
+        // Find the index of the selected option in the current language options
         const selectedIndex = currentOptions.indexOf(option);
 
-        // Find the index of the correct answer in the English options
-        const correctIndex = currentQ.options.indexOf(currentQ.correctAnswer);
+        // Find the index of the correct answer in the current language options
+        const correctIndex = currentOptions.indexOf(correctAnswerText);
 
         // Check if the selected index matches the correct index
-        const isCorrect = selectedIndex === correctIndex;
+        const isCorrect = selectedIndex !== -1 && selectedIndex === correctIndex;
 
         setSelectedAnswer(option);
         setAnswers({ ...answers, [currentQ._id]: option });
