@@ -1,3 +1,6 @@
+/* Import Arabic fonts for Quran text */
+@import url('https://fonts.googleapis.com/css2?family=Amiri+Quran&family=Scheherazade+New:wght@400;700&display=swap');
+
 @import "tailwindcss";
 
 :root {
@@ -9,4 +12,12 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Arabic font for Quran text */
+.font-arabic {
+  font-family: 'Amiri Quran', 'Scheherazade New', serif;
+  font-weight: 400;
+  line-height: 2;
+  letter-spacing: 0.02em;
 }
