@@ -1,0 +1,19 @@
+// Helper functions for calculation settings
+const loadCalculationSettings = () => {
+    const savedMethod = localStorage.getItem("calculationMethod");
+    const savedSchool = localStorage.getItem("asrSchool");
+    if (savedMethod) setCalculationMethod(parseInt(savedMethod));
+    if (savedSchool) setAsrSchool(parseInt(savedSchool));
+};
+
+const updateCalculationMethod = (method) => {
+    setCalculationMethod(method);
+    localStorage.setItem("calculationMethod", String(method));
+    if (location) fetchPrayerTimes(location);
+};
+
+const updateAsrSchool = (school) => {
+    setAsrSchool(school);
+    localStorage.setItem("asrSchool", String(school));
+    if (location) fetchPrayerTimes(location);
+};

@@ -1,0 +1,104 @@
+// CALCULATION SETTINGS - Add these helper functions after line 331 (after formatTime function)
+
+const loadCalculationSettings = () => {
+    const savedMethod = localStorage.getItem("calculationMethod");
+    const savedSchool = localStorage.getItem("asrSchool");
+    if (savedMethod) setCalculationMethod(parseInt(savedMethod));
+    if (savedSchool) setAsrSchool(parseInt(savedSchool));
+};
+
+const updateCalculationMethod = (method) => {
+    setCalculationMethod(method);
+    localStorage.setItem("calculationMethod", String(method));
+    if (location) fetchPrayerTimes(location);
+};
+
+const updateAsrSchool = (school) => {
+    setAsrSchool(school);
+    localStorage.setItem("asrSchool", String(school));
+    if (location) fetchPrayerTimes(location);
+};
+
+// SETTINGS PANEL UI - Add this before the closing </div> of the main prayer times card
+// Insert around line 480 (before the final closing divs)
+
+{/* Calculation Settings Panel */}
+{showSettings && (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-6">
+                <h3 className="text-2xl font-bold text-slate-900">Prayer Calculation Settings</h3>
+                <button
+                    onClick={() => setShowSettings(false)}
+                    className="text-slate-400 hover:text-slate-600 transition"
+                >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            {/* Calculation Method */}
+            <div className="mb-6">
+                <label className="block text-sm font-semibold text-slate-700 mb-3">
+                    Calculation Method
+                </label>
+                <div className="space-y-2">
+                    {CALCULATION_METHODS.map((method) => (
+                        <button
+                            key={method.id}
+                            onClick={() => updateCalculationMethod(method.id)}
+                            className={`w-full text-left px-4 py-3 rounded-lg transition ${
+                                calculationMethod === method.id
+                                    ? "bg-emerald-600 text-white"
+                                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                            }`}
+                        >
+                            {method.name}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            {/* Asr School */}
+            <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-3">
+                    Asr Calculation
+                </label>
+                <div className="space-y-2">
+                    {ASR_SCHOOLS.map((school) => (
+                        <button
+                            key={school.id}
+                            onClick={() => updateAsrSchool(school.id)}
+                            className={`w-full text-left px-4 py-3 rounded-lg transition ${
+                                asrSchool === school.id
+                                    ? "bg-emerald-600 text-white"
+                                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                            }`}
+                        >
+                            {school.name}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            <button
+                onClick={() => setShowSettings(false)}
+                className="w-full mt-6 bg-slate-200 text-slate-700 py-3 rounded-lg font-semibold hover:bg-slate-300 transition"
+            >
+                Close
+            </button>
+        </div>
+    </div>
+)}
+
+// SETTINGS BUTTON - Add this in the top info bar next to the notification bell
+// Around line 420, add this button:
+
+<button
+    onClick={() => setShowSettings(true)}
+    className="hover:bg-white/20 p-2 rounded-lg transition"
+    title="Calculation Settings"
+>
+    <Settings className="w-4 h-4" />
+</button>

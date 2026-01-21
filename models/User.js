@@ -36,6 +36,18 @@ const UserSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Question',
     }],
+    quranTracker: {
+        startDate: Date,
+        targetDays: { type: Number, default: 30 },
+        currentProgress: { type: Number, default: 0 },
+        lastSurah: String,
+        lastAyah: Number,
+        logs: [{
+            date: Date,
+            surah: String,
+            ayah: Number
+        }]
+    }
 }, { timestamps: true });
 
 export default mongoose.models.User || mongoose.model('User', UserSchema);
