@@ -10,6 +10,9 @@ export async function POST(request) {
         const body = await request.json();
         const { endpoint } = body;
 
+        console.log('Request body:', body);
+        console.log('Endpoint:', endpoint);
+
         if (!endpoint) {
             return NextResponse.json(
                 { error: 'Endpoint required' },
@@ -19,6 +22,8 @@ export async function POST(request) {
 
         // Find the subscription
         const subscription = await PushSubscription.findOne({ endpoint });
+
+        console.log('Subscription found:', subscription);
 
         if (!subscription) {
             return NextResponse.json(
