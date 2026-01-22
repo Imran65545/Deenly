@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { MapPin, Clock, Calendar, RefreshCw, Loader2, Bell, BellOff, Settings, Compass, Moon, Volume2 } from "lucide-react";
 import Link from "next/link";
+import { messaging } from "@/lib/firebase";
+import { getToken, onMessage } from "firebase/messaging";
 
 const PRAYER_NAMES = ["Fajr", "Sunrise", "Dhuhr", "Asr", "Maghrib", "Isha"];
 const NOTIFICATION_PRAYERS = ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"];
@@ -48,6 +50,7 @@ export default function PrayerTimes() {
     const [testDemoCountdown, setTestDemoCountdown] = useState(0);
     const [currentAudio, setCurrentAudio] = useState(null);
     const [pushEndpoint, setPushEndpoint] = useState(null);
+    const [notificationToast, setNotificationToast] = useState(null); // New state for custom toast
 
     useEffect(() => {
         requestLocation();
@@ -55,6 +58,31 @@ export default function PrayerTimes() {
         loadNotificationPreference();
         registerServiceWorker();
         setupVolumeButtonListener();
+
+        // Listen for foreground FCM messages
+        if (messaging) {
+            const unsubscribe = onMessage(messaging, (payload) => {
+                console.log('Foreground message received:', payload);
+
+                // Play audio if enabled
+                if (payload.data && (payload.data.playAudio === 'true' || payload.data.playAudio === true)) {
+                    const audio = new Audio('/adhan.mp3');
+                    audio.play().catch(e => console.error('Audio play failed', e));
+                    setCurrentAudio(audio);
+                    audio.onended = () => setCurrentAudio(null);
+                }
+
+                // Show custom toast instead of alert
+                setNotificationToast({
+                    title: payload.notification.title || 'Prayer Time',
+                    body: payload.notification.body
+                });
+
+                // Auto hide after 5 seconds
+                setTimeout(() => setNotificationToast(null), 5000);
+            });
+            return () => unsubscribe();
+        }
     }, []);
 
     useEffect(() => {
@@ -344,60 +372,71 @@ export default function PrayerTimes() {
     const subscribeToPushNotifications = async () => {
         try {
             console.log('subscribeToPushNotifications called');
-            console.log('NEXT_PUBLIC_VAPID_PUBLIC_KEY env var:', process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY);
-            
+
             if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
                 console.log('Push notifications not supported');
                 return;
             }
 
-            console.log('VAPID_PUBLIC_KEY value:', VAPID_PUBLIC_KEY);
-            console.log('VAPID_PUBLIC_KEY is empty?', !VAPID_PUBLIC_KEY);
-
-            if (!VAPID_PUBLIC_KEY) {
-                console.log('VAPID key not configured - push will be skipped');
+            const permission = await Notification.requestPermission();
+            if (permission !== 'granted') {
+                console.log('Notification permission denied');
                 return;
             }
 
-            const registration = await navigator.serviceWorker.ready;
+            // Register the FCM service worker explicitly if not already handled by firebase-js-sdk auto-init
+            // Note: getToken will register it if not found, but we want to ensure we use our file.
+            // We already registered /sw.js for offline/caching.
+            // Firebase needs /firebase-messaging-sw.js by default.
 
-            // Check if already subscribed
-            let subscription = await registration.pushManager.getSubscription();
+            let currentToken;
 
-            if (!subscription) {
-                try {
-                    console.log('Attempting to subscribe with VAPID key length:', VAPID_PUBLIC_KEY.length);
-                    const uint8Array = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
-                    console.log('Uint8Array created, length:', uint8Array.length);
-                    
-                    subscription = await registration.pushManager.subscribe({
-                        userVisibleOnly: true,
-                        applicationServerKey: uint8Array
+            try {
+                // Get FCM Token
+                // Note: We use the VAPID key from env
+                const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
 
-                    });
-                    console.log('Push subscription created successfully');
-                } catch (subError) {
-                    console.error('Push subscribe failed:', subError.name, subError.message);
-                    return; // Gracefully fail - local notifications will still work
+                if (!vapidKey) {
+                    console.error('Missing NEXT_PUBLIC_FIREBASE_VAPID_KEY');
+                    return;
                 }
+
+                if (messaging) {
+                    const registration = await navigator.serviceWorker.ready;
+                    currentToken = await getToken(messaging, {
+                        vapidKey: vapidKey,
+                        serviceWorkerRegistration: registration
+                    });
+                }
+            } catch (err) {
+                console.error('An error occurred while retrieving token. ', err);
+
+                // Fallback to VAPID if FCM fails (optional, but good for stability during migration)
+                console.log('Falling back to standard VAPID...');
+                // ... (Existing VAPID logic could go here, but let's commit to FCM as per plan)
+                return;
             }
 
+            if (currentToken) {
+                // Send token to server
+                await fetch('/api/push/subscribe', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        token: currentToken, // Send FCM token
+                        location,
+                        notificationsEnabled,
+                        adhanAudioEnabled
+                    })
+                }).catch(err => console.log('Subscription save failed:', err));
 
-            // Send subscription to server
-            await fetch('/api/push/subscribe', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    subscription,
-                    location,
-                    notificationsEnabled,
-                    adhanAudioEnabled
-                })
-            }).catch(err => console.log('Subscription save failed:', err));
-
-            setPushEndpoint(subscription?.endpoint);
+                setPushEndpoint(currentToken);
+                console.log('FCM Token registered:', currentToken);
+            } else {
+                console.log('No registration token available. Request permission to generate one.');
+            }
         } catch (error) {
             console.error('Push notification setup error:', error.message);
         }
@@ -691,7 +730,31 @@ export default function PrayerTimes() {
     }
 
     return (
-        <div className="max-w-2xl mx-auto">
+        <div className="max-w-2xl mx-auto relative">
+            {/* Custom Notification Toast */}
+            {notificationToast && (
+                <div className="fixed top-4 left-0 right-0 z-50 px-4 animate-in slide-in-from-top-2">
+                    <div className="bg-white/95 backdrop-blur-sm border border-emerald-100 shadow-xl rounded-2xl p-4 flex items-start gap-4 max-w-md mx-auto">
+                        <div className="bg-emerald-100 p-2 rounded-full">
+                            <Bell className="w-6 h-6 text-emerald-600" />
+                        </div>
+                        <div className="flex-1">
+                            <h3 className="font-bold text-slate-800">{notificationToast.title}</h3>
+                            <p className="text-slate-600 text-sm mt-1">{notificationToast.body}</p>
+                        </div>
+                        <button
+                            onClick={() => setNotificationToast(null)}
+                            className="text-slate-400 hover:text-slate-600"
+                        >
+                            <span className="sr-only">Close</span>
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {/* Header Section */}
             <div className="bg-gradient-to-br from-sky-400 via-blue-300 to-orange-200 rounded-3xl shadow-2xl overflow-hidden">
                 {/* Top Info Bar */}

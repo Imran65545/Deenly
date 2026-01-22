@@ -1,5 +1,37 @@
 // Service Worker for background notifications and adhan audio
+importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js');
+
 const CACHE_NAME = 'deenly-v1';
+
+const firebaseConfig = {
+    apiKey: "AIzaSyBMfVKGRwJpys6jxS20m4N8xHK93ympaeI",
+    authDomain: "deenly-f4c21.firebaseapp.com",
+    projectId: "deenly-f4c21",
+    storageBucket: "deenly-f4c21.firebasestorage.app",
+    messagingSenderId: "4360465603",
+    appId: "1:4360465603:web:e9586fd2dd628ae0930676",
+};
+
+// Initialize Firebase
+firebase.initializeApp(firebaseConfig);
+
+// Retrieve an instance of Firebase Messaging
+const messaging = firebase.messaging();
+
+// Handle background messages
+messaging.onBackgroundMessage((payload) => {
+    console.log('[sw.js] Received background message ', payload);
+
+    const notificationTitle = payload.notification.title;
+    const notificationOptions = {
+        body: payload.notification.body,
+        icon: payload.notification.icon || '/icon.png',
+        data: payload.data
+    };
+
+    self.registration.showNotification(notificationTitle, notificationOptions);
+});
 
 // Install event - cache essential files
 self.addEventListener('install', (event) => {

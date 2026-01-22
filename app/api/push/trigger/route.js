@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/db';
 import PushSubscription from '@/models/PushSubscription';
 import { sendPushNotification } from '@/lib/webpush';
+import admin from '@/lib/firebase-admin';
 
 const PRAYER_NAMES = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
 
@@ -58,23 +59,72 @@ export async function GET(request) {
                         }
                     }
 
-                    // Send push notification
                     const payload = {
                         title: 'Prayer Time',
                         body: `It's time for ${matchingPrayer} prayer`,
                         icon: '/icon.png',
                         badge: '/icon.png',
-                        playAudio: sub.adhanAudioEnabled,
-                        prayer: matchingPrayer,
-                        time: prayerTimes[matchingPrayer]
+                        data: {
+                            url: '/prayer',
+                            playAudio: sub.adhanAudioEnabled ? 'true' : 'false',
+                            prayer: matchingPrayer,
+                            time: prayerTimes[matchingPrayer]
+                        }
                     };
 
-                    const pushSubscription = {
-                        endpoint: sub.endpoint,
-                        keys: sub.keys
-                    };
+                    let result = { success: false, expired: false };
 
-                    const result = await sendPushNotification(pushSubscription, payload);
+                    // Send based on token type
+                    if (sub.tokenType === 'fcm' || (!sub.tokenType && sub.fcmToken)) {
+                        // Send via Firebase Admin
+                        try {
+                            await admin.messaging().send({
+                                token: sub.fcmToken,
+                                notification: {
+                                    title: payload.title,
+                                    body: payload.body
+                                },
+                                webpush: {
+                                    notification: {
+                                        icon: payload.icon,
+                                        badge: payload.badge,
+                                        requireInteraction: true,
+                                        vibrate: [200, 100, 200],
+                                        data: payload.data
+                                    },
+                                    fcmOptions: {
+                                        link: '/prayer'
+                                    }
+                                },
+                                data: payload.data, // Also send as data payload
+                            });
+                            result.success = true;
+                        } catch (fcmError) {
+                            console.error(`FCM error for ${sub._id}:`, fcmError);
+                            if (fcmError.code === 'messaging/registration-token-not-registered' ||
+                                fcmError.code === 'messaging/invalid-registration-token') {
+                                result.expired = true;
+                            }
+                        }
+                    } else {
+                        // Legacy VAPID Web Push
+                        const pushSubscription = {
+                            endpoint: sub.endpoint,
+                            keys: sub.keys
+                        };
+                        // Adapt payload for legacy SW format if needed, or keeping it consistent
+                        // existing sw.js expects { title, body, icon, ... } in wrapper
+                        const vapidPayload = {
+                            title: payload.title,
+                            body: payload.body,
+                            icon: payload.icon,
+                            badge: payload.badge,
+                            playAudio: sub.adhanAudioEnabled, // Legacy SW used this prop directly
+                            prayer: matchingPrayer,
+                            time: prayerTimes[matchingPrayer]
+                        };
+                        result = await sendPushNotification(pushSubscription, vapidPayload);
+                    }
 
                     if (result.success) {
                         sentCount++;

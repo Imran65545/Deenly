@@ -7,17 +7,25 @@ const PushSubscriptionSchema = new mongoose.Schema({
     },
     endpoint: {
         type: String,
-        required: true,
-        unique: true
+        unique: true,
+        sparse: true // Allows multiple null values
+    },
+    fcmToken: {
+        type: String,
+        unique: true,
+        sparse: true
+    },
+    tokenType: {
+        type: String,
+        enum: ['fcm', 'vapid'],
+        default: 'fcm'
     },
     keys: {
         p256dh: {
-            type: String,
-            required: true
+            type: String
         },
         auth: {
-            type: String,
-            required: true
+            type: String
         }
     },
     location: {
@@ -25,7 +33,7 @@ const PushSubscriptionSchema = new mongoose.Schema({
         lng: Number,
         city: String,
         country: String,
-        type: String // 'coords' or 'city'
+        type: { type: String } // Explicit definition to avoid Mongoose thinking 'location' is a String
     },
     notificationsEnabled: {
         type: Boolean,
