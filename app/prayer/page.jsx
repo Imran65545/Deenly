@@ -47,6 +47,7 @@ export default function PrayerTimes() {
     const [testDemoScheduled, setTestDemoScheduled] = useState(false);
     const [testDemoCountdown, setTestDemoCountdown] = useState(0);
     const [currentAudio, setCurrentAudio] = useState(null);
+    const [pushEndpoint, setPushEndpoint] = useState(null);
 
     useEffect(() => {
         requestLocation();
@@ -375,6 +376,9 @@ export default function PrayerTimes() {
             });
 
             console.log('Push subscription successful');
+
+            // Store endpoint for test demo
+            setPushEndpoint(subscription.endpoint);
         } catch (error) {
             console.error('Error subscribing to push:', error);
         }
@@ -409,18 +413,46 @@ export default function PrayerTimes() {
         }
     };
 
-    const startTestDemo = () => {
-        const testDelay = 3 * 60 * 1000; // 3 minutes in milliseconds
+    const startTestDemo = async () => {
         setTestDemoScheduled(true);
         setTestDemoCountdown(180); // 180 seconds = 3 minutes
 
-        setTimeout(() => {
-            showPrayerNotification("Test Prayer", "13:05");
+        // Send test notification after 3 minutes using server
+        setTimeout(async () => {
+            try {
+                if (!pushEndpoint) {
+                    alert('Please enable notifications first!');
+                    setTestDemoScheduled(false);
+                    setTestDemoCountdown(0);
+                    return;
+                }
+
+                const response = await fetch('/api/push/test', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        endpoint: pushEndpoint
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    console.log('Test notification sent successfully');
+                } else {
+                    console.error('Failed to send test notification:', data.error);
+                }
+            } catch (error) {
+                console.error('Error sending test notification:', error);
+            }
+
             setTestDemoScheduled(false);
             setTestDemoCountdown(0);
-        }, testDelay);
+        }, 3 * 60 * 1000); // 3 minutes
 
-        alert("Test demo scheduled! Notification and audio will play in 3 minutes.");
+        alert("Test demo scheduled! You'll receive a push notification in 3 minutes.\n\nYou can now CLOSE the app completely to test background notifications!");
     };
 
 
