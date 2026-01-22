@@ -8,7 +8,7 @@ const PRAYER_NAMES = ["Fajr", "Sunrise", "Dhuhr", "Asr", "Maghrib", "Isha"];
 const NOTIFICATION_PRAYERS = ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"];
 
 // VAPID Public Key for Web Push
-const VAPID_PUBLIC_KEY = 'BCuNp5We9GLsi4j5xCBxSnO-_0edIkwLUdSJSkOsS9kpdFJL8idiighg27IOQeXLZ-dbBbTfnpkqrv_OXcFqVjQ';
+const VAPID_PUBLIC_KEY = 'BO1V4WL4Wrqh86WdDYUNiLmE6x0tq30KX9Weykdg0LNW126iRkBWxNTJ_eM0e5fLK9NqMx7Yl3N9K93iR90Y91U';
 
 const PRAYER_ICONS = {
     Fajr: "🌙",
