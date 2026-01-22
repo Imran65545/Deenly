@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { MapPin, Clock, Calendar, RefreshCw, Loader2, Bell, BellOff, Settings, Compass, Moon } from "lucide-react";
+import { MapPin, Clock, Calendar, RefreshCw, Loader2, Bell, BellOff, Settings, Compass, Moon, Volume2 } from "lucide-react";
 import Link from "next/link";
 
 const PRAYER_NAMES = ["Fajr", "Sunrise", "Dhuhr", "Asr", "Maghrib", "Isha"];
@@ -39,11 +39,18 @@ export default function PrayerTimes() {
     const [showQibla, setShowQibla] = useState(false);
     const [qiblaDirection, setQiblaDirection] = useState(null);
     const [deviceHeading, setDeviceHeading] = useState(0);
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+    const [adhanAudioEnabled, setAdhanAudioEnabled] = useState(false);
+    const [testDemoScheduled, setTestDemoScheduled] = useState(false);
+    const [testDemoCountdown, setTestDemoCountdown] = useState(0);
+    const [currentAudio, setCurrentAudio] = useState(null);
 
     useEffect(() => {
         requestLocation();
         checkNotificationPermission();
         loadNotificationPreference();
+        registerServiceWorker();
+        setupVolumeButtonListener();
     }, []);
 
     useEffect(() => {
@@ -59,10 +66,99 @@ export default function PrayerTimes() {
             const interval = setInterval(calculateNextPrayer, 1000);
             if (notificationsEnabled) {
                 schedulePrayerNotifications();
+                sendNotificationsToServiceWorker(); // Send to Service Worker for background
             }
             return () => clearInterval(interval);
         }
-    }, [prayerTimes, notificationsEnabled]);
+    }, [prayerTimes, notificationsEnabled, adhanAudioEnabled]);
+
+    useEffect(() => {
+        if (testDemoCountdown > 0) {
+            const timer = setInterval(() => {
+                setTestDemoCountdown(prev => {
+                    if (prev <= 1) {
+                        setTestDemoScheduled(false);
+                        return 0;
+                    }
+                    return prev - 1;
+                });
+            }, 1000);
+            return () => clearInterval(timer);
+        }
+    }, [testDemoCountdown]);
+
+    // Register Service Worker for background notifications
+    const registerServiceWorker = async () => {
+        if ('serviceWorker' in navigator) {
+            try {
+                const registration = await navigator.serviceWorker.register('/sw.js');
+                console.log('Service Worker registered:', registration);
+
+                // Listen for messages from Service Worker
+                navigator.serviceWorker.addEventListener('message', (event) => {
+                    if (event.data.type === 'PLAY_ADHAN_AUDIO') {
+                        playAdhanAudio();
+                    }
+                });
+            } catch (error) {
+                console.error('Service Worker registration failed:', error);
+            }
+        }
+    };
+
+    // Setup volume button listener to stop adhan
+    const setupVolumeButtonListener = () => {
+        // Listen for any key press (volume buttons trigger keydown on mobile)
+        const handleKeyPress = (e) => {
+            if (currentAudio && !currentAudio.paused) {
+                stopAdhanAudio();
+            }
+        };
+
+        // Listen for visibility change (when user interacts with phone)
+        const handleVisibilityChange = () => {
+            if (document.hidden && currentAudio && !currentAudio.paused) {
+                // User pressed power button or switched apps
+                stopAdhanAudio();
+            }
+        };
+
+        document.addEventListener('keydown', handleKeyPress);
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        return () => {
+            document.removeEventListener('keydown', handleKeyPress);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
+    };
+
+    // Play adhan audio
+    const playAdhanAudio = () => {
+        try {
+            const audio = new Audio('/adhan.mp3');
+            setCurrentAudio(audio);
+
+            audio.play().catch(err => {
+                console.error('Error playing adhan audio:', err);
+            });
+
+            // Auto-stop after audio ends
+            audio.onended = () => {
+                setCurrentAudio(null);
+            };
+        } catch (err) {
+            console.error('Error creating audio:', err);
+        }
+    };
+
+    // Stop adhan audio
+    const stopAdhanAudio = () => {
+        if (currentAudio) {
+            currentAudio.pause();
+            currentAudio.currentTime = 0;
+            setCurrentAudio(null);
+        }
+    };
 
     const requestLocation = () => {
         if (navigator.geolocation) {
@@ -130,6 +226,10 @@ export default function PrayerTimes() {
         const saved = localStorage.getItem("prayerNotificationsEnabled");
         if (saved !== null) {
             setNotificationsEnabled(saved === "true");
+        }
+        const savedAudio = localStorage.getItem("prayerAdhanAudioEnabled");
+        if (savedAudio !== null) {
+            setAdhanAudioEnabled(savedAudio === "true");
         }
     };
 
@@ -208,7 +308,7 @@ export default function PrayerTimes() {
                 badge: "/icon.png",
                 tag: `prayer-${prayer}`,
                 requireInteraction: false,
-                silent: false
+                silent: !adhanAudioEnabled
             });
 
             notification.onclick = () => {
@@ -216,7 +316,52 @@ export default function PrayerTimes() {
                 notification.close();
             };
         }
+
+        // Play adhan audio if enabled using the new function
+        if (adhanAudioEnabled) {
+            playAdhanAudio();
+        }
     };
+
+    // Send prayer times to Service Worker for background scheduling
+    const sendNotificationsToServiceWorker = () => {
+        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage({
+                type: 'SCHEDULE_PRAYER_NOTIFICATIONS',
+                prayerTimes: prayerTimes,
+                notificationsEnabled: notificationsEnabled,
+                adhanAudioEnabled: adhanAudioEnabled
+            });
+        }
+    };
+
+    const scheduleTestDemo = () => {
+        // Request notification permission first if needed
+        if (notificationPermission !== "granted") {
+            requestNotificationPermission().then(() => {
+                if (Notification.permission === "granted") {
+                    startTestDemo();
+                }
+            });
+        } else {
+            startTestDemo();
+        }
+    };
+
+    const startTestDemo = () => {
+        const testDelay = 3 * 60 * 1000; // 3 minutes in milliseconds
+        setTestDemoScheduled(true);
+        setTestDemoCountdown(180); // 180 seconds = 3 minutes
+
+        setTimeout(() => {
+            showPrayerNotification("Test Prayer", "13:05");
+            setTestDemoScheduled(false);
+            setTestDemoCountdown(0);
+        }, testDelay);
+
+        alert("Test demo scheduled! Notification and audio will play in 3 minutes.");
+    };
+
 
     const fetchPrayerTimes = async (loc) => {
         try {
@@ -449,17 +594,12 @@ export default function PrayerTimes() {
                             </span>
                         </div>
                         <div className="flex items-center gap-2">
-
                             <button
-                                onClick={toggleNotifications}
+                                onClick={(e) => { e.stopPropagation(); setIsSettingsOpen(true); }}
                                 className="hover:bg-white/20 p-2 rounded-lg transition"
-                                title={notificationsEnabled ? "Disable notifications" : "Enable notifications"}
+                                title="Prayer Settings"
                             >
-                                {notificationsEnabled ? (
-                                    <Bell className="w-4 h-4" />
-                                ) : (
-                                    <BellOff className="w-4 h-4" />
-                                )}
+                                <Settings className="w-4 h-4" />
                             </button>
                             <button
                                 onClick={() => location && fetchPrayerTimes(location)}
@@ -656,6 +796,112 @@ export default function PrayerTimes() {
                                 </p>
                             )}
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Settings Modal */}
+            {isSettingsOpen && (
+                <div
+                    className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end md:items-center justify-center p-4 animate-in fade-in duration-200"
+                    onClick={() => setIsSettingsOpen(false)}
+                >
+                    <div
+                        className="bg-white text-slate-900 w-full max-w-md rounded-t-3xl md:rounded-3xl p-6 pb-12 md:pb-6 shadow-2xl animate-in slide-in-from-bottom duration-300"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <h3 className="text-2xl font-bold mb-6 text-slate-800">Prayer Settings</h3>
+                        <div className="space-y-4">
+                            {/* Notification Toggle */}
+                            <div className="flex items-center justify-between p-4 rounded-xl border-2 border-slate-100 hover:border-emerald-200 transition-all">
+                                <div className="flex items-center gap-3">
+                                    <Bell className="w-5 h-5 text-emerald-600" />
+                                    <div>
+                                        <div className="font-bold text-slate-800">Adhan Notifications</div>
+                                        <div className="text-xs text-slate-500">Get notified at prayer times</div>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={async () => {
+                                        if (!notificationsEnabled && notificationPermission !== "granted") {
+                                            await requestNotificationPermission();
+                                        } else {
+                                            const newState = !notificationsEnabled;
+                                            setNotificationsEnabled(newState);
+                                            localStorage.setItem("prayerNotificationsEnabled", String(newState));
+                                            if (!newState) {
+                                                clearScheduledNotifications();
+                                            }
+                                        }
+                                    }}
+                                    className={`relative w-14 h-7 rounded-full transition-colors ${notificationsEnabled ? "bg-emerald-500" : "bg-slate-300"
+                                        }`}
+                                >
+                                    <div
+                                        className={`absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow-md transition-transform ${notificationsEnabled ? "translate-x-7" : "translate-x-0"
+                                            }`}
+                                    />
+                                </button>
+                            </div>
+
+                            {/* Audio Toggle */}
+                            <div className="flex items-center justify-between p-4 rounded-xl border-2 border-slate-100 hover:border-emerald-200 transition-all">
+                                <div className="flex items-center gap-3">
+                                    <Volume2 className="w-5 h-5 text-emerald-600" />
+                                    <div>
+                                        <div className="font-bold text-slate-800">Adhan Audio</div>
+                                        <div className="text-xs text-slate-500">Play adhan sound at prayer times</div>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => {
+                                        const newState = !adhanAudioEnabled;
+                                        setAdhanAudioEnabled(newState);
+                                        localStorage.setItem("prayerAdhanAudioEnabled", String(newState));
+                                    }}
+                                    className={`relative w-14 h-7 rounded-full transition-colors ${adhanAudioEnabled ? "bg-emerald-500" : "bg-slate-300"
+                                        }`}
+                                >
+                                    <div
+                                        className={`absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow-md transition-transform ${adhanAudioEnabled ? "translate-x-7" : "translate-x-0"
+                                            }`}
+                                    />
+                                </button>
+                            </div>
+
+                            {/* Test Demo Button */}
+                            <div className="mt-6 p-4 bg-blue-50 rounded-xl border-2 border-blue-100">
+                                <div className="flex items-center gap-2 mb-3">
+                                    <div className="text-2xl">🧪</div>
+                                    <div>
+                                        <div className="font-bold text-slate-800">Test Demo Mode</div>
+                                        <div className="text-xs text-slate-500">Test notification & audio in 3 minutes</div>
+                                    </div>
+                                </div>
+                                {testDemoScheduled ? (
+                                    <div className="bg-white p-3 rounded-lg text-center">
+                                        <div className="text-sm text-slate-600 mb-1">Test scheduled in:</div>
+                                        <div className="text-2xl font-bold text-blue-600">
+                                            {Math.floor(testDemoCountdown / 60)}:{String(testDemoCountdown % 60).padStart(2, '0')}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <button
+                                        onClick={scheduleTestDemo}
+                                        className="w-full bg-blue-500 text-white py-3 rounded-lg font-semibold hover:bg-blue-600 transition"
+                                    >
+                                        Schedule Test Demo
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        <button
+                            onClick={() => setIsSettingsOpen(false)}
+                            className="w-full mt-6 bg-slate-100 text-slate-700 py-3 rounded-xl font-bold hover:bg-slate-200 transition"
+                        >
+                            Close
+                        </button>
                     </div>
                 </div>
             )}

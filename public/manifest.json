@@ -1,11 +1,13 @@
 {
-    "name": "Deenly",
+    "name": "Deenly - Islamic App",
     "short_name": "Deenly",
-    "description": "Islamic Knowledge Quiz & Prayer Times",
+    "description": "Islamic Knowledge Quiz & Prayer Times with Adhan Notifications",
     "start_url": "/",
     "display": "standalone",
     "background_color": "#ffffff",
     "theme_color": "#10b981",
+    "orientation": "portrait",
+    "scope": "/",
     "icons": [
         {
             "src": "/pwa-icon-512.png",
@@ -18,5 +20,9 @@
             "sizes": "192x192",
             "type": "image/png"
         }
-    ]
+    ],
+    "permissions": [
+        "notifications"
+    ],
+    "prefer_related_applications": false
 }
