@@ -53,6 +53,17 @@ export default function PrayerTimes() {
     const [notificationToast, setNotificationToast] = useState(null); // New state for custom toast
 
     useEffect(() => {
+        // Check query params for playAudio (triggered by notification click)
+        if (typeof window !== 'undefined') {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('playAudio') === '1') {
+                // Remove param from URL without reload
+                window.history.replaceState({}, '', '/prayer');
+                // Allow a small delay for user interaction/focus
+                setTimeout(() => playAdhanAudio(), 1000);
+            }
+        }
+
         requestLocation();
         checkNotificationPermission();
         loadNotificationPreference();
@@ -480,14 +491,52 @@ export default function PrayerTimes() {
         setTestDemoScheduled(true);
         setTestDemoCountdown(180); // 180 seconds = 3 minutes
 
+        let activeToken = pushEndpoint;
+
+        // Smart Fallback: If no token in state, try to get it fresh
+        if (!activeToken) {
+            console.log('No token in state, fetching fresh token for demo...');
+            try {
+                // Determine VAPID Key
+                const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
+                if (messaging && vapidKey) {
+                    const registration = await navigator.serviceWorker.ready;
+                    activeToken = await getToken(messaging, {
+                        vapidKey: vapidKey,
+                        serviceWorkerRegistration: registration
+                    });
+                    if (activeToken) {
+                        setPushEndpoint(activeToken);
+                        // Ensure it's saved to backend
+                        await fetch('/api/push/subscribe', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                token: activeToken,
+                                location,
+                                notificationsEnabled: true,
+                                adhanAudioEnabled
+                            })
+                        });
+                    }
+                }
+            } catch (err) {
+                console.error('Error fetching token for demo:', err);
+            }
+        }
+
         // Send test notification after 3 minutes using server
         setTimeout(async () => {
             try {
-                if (!pushEndpoint) {
-                    alert('Please enable notifications first!');
-                    setTestDemoScheduled(false);
-                    setTestDemoCountdown(0);
-                    return;
+                if (!activeToken) {
+                    // Try one last time from state or give up
+                    if (pushEndpoint) activeToken = pushEndpoint;
+                    else {
+                        alert('Could not enable notifications. Please Reset Permissions and try again.');
+                        setTestDemoScheduled(false);
+                        setTestDemoCountdown(0);
+                        return;
+                    }
                 }
 
                 const response = await fetch('/api/push/test', {
@@ -496,7 +545,7 @@ export default function PrayerTimes() {
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        endpoint: pushEndpoint
+                        endpoint: activeToken
                     })
                 });
 
@@ -760,6 +809,22 @@ export default function PrayerTimes() {
                 </div>
             )}
 
+            {/* Manual Play Button (Autoplay Fallback) */}
+            {showManualPlay && (
+                <div className="fixed top-20 left-0 right-0 z-50 px-4 animate-in fade-in zoom-in duration-300">
+                    <button
+                        onClick={() => {
+                            playAdhanAudio();
+                            setShowManualPlay(false);
+                        }}
+                        className="w-full max-w-sm mx-auto bg-emerald-600 text-white p-4 rounded-xl shadow-2xl flex items-center justify-center gap-3 hover:bg-emerald-700 transition transform hover:scale-105"
+                    >
+                        <Volume2 className="w-6 h-6 animate-pulse" />
+                        <span className="font-bold text-lg">Tap to Play Adhan</span>
+                    </button>
+                </div>
+            )}
+
             {/* Header Section */}
             <div className="bg-gradient-to-br from-sky-400 via-blue-300 to-orange-200 rounded-3xl shadow-2xl overflow-hidden">
                 {/* Top Info Bar */}
@@ -772,7 +837,7 @@ export default function PrayerTimes() {
                                     ? `${location.city}, ${location.country}`
                                     : location?.city || "Current Location"}
                             </span>
-                            <span className="text-[10px] bg-white/10 px-1 rounded ml-1">v1.1</span>
+                            <span className="text-[10px] bg-white/10 px-1 rounded ml-1">v1.2</span>
                         </div>
                         <div className="flex items-center gap-2">
                             <button

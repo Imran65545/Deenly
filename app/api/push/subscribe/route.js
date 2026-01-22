@@ -3,10 +3,13 @@ import dbConnect from '@/lib/db';
 import PushSubscription from '@/models/PushSubscription';
 
 export async function POST(request) {
+  console.log('DEBUG: Subscribe API called');
   try {
     await dbConnect();
 
     const body = await request.json();
+    console.log('DEBUG: Subscribe Body:', JSON.stringify(body, null, 2));
+
     let { subscription, token, location, notificationsEnabled, adhanAudioEnabled } = body;
 
     // Determine if this is FCM or VAPID
@@ -51,7 +54,10 @@ export async function POST(request) {
     if (isFCM) {
       subscriptionData.fcmToken = token;
       subscriptionData.tokenType = 'fcm';
-      // We don't store keys or endpoint for FCM
+      // Mongoose/Mongo unique sparse index fails on explicit nulls sometimes. 
+      // Ensure we don't set endpoint at all.
+      subscriptionData.endpoint = undefined;
+      subscriptionData.keys = undefined;
     } else {
       subscriptionData.endpoint = subscription.endpoint;
       subscriptionData.keys = subscription.keys;
@@ -59,25 +65,49 @@ export async function POST(request) {
     }
 
     if (existing) {
+      console.log('DEBUG: Updating existing subscription');
       // Update existing
       Object.assign(existing, subscriptionData);
       await existing.save();
+      console.log('DEBUG: Update successful');
       return NextResponse.json({
         success: true,
         message: 'Subscription updated',
         subscription: existing
       });
     } else {
+      console.log('DEBUG: Creating new subscription');
       // Create new
       try {
         const newSubscription = await PushSubscription.create(subscriptionData);
+        console.log('DEBUG: Creation successful', newSubscription._id);
         return NextResponse.json({
           success: true,
           message: 'Subscription created',
           subscription: newSubscription
         });
       } catch (createError) {
-        // Handle duplicate key error gracefully if race condition
+        console.error('DEBUG: Creation failed', createError);
+
+        // Self-healing: If stale unique index on 'endpoint' exists, drop it and retry
+        if (createError.code === 11000 && createError.message.includes('endpoint_1')) {
+          console.log('DEBUG: Stale index detected. Dropping "endpoint_1" index...');
+          try {
+            await PushSubscription.collection.dropIndex('endpoint_1');
+            console.log('DEBUG: Index dropped. Retrying creation...');
+            const retrySubscription = await PushSubscription.create(subscriptionData);
+            return NextResponse.json({
+              success: true,
+              message: 'Subscription created (after index fix)',
+              subscription: retrySubscription
+            });
+          } catch (retryError) {
+            console.error('DEBUG: Retry failed', retryError);
+            throw retryError;
+          }
+        }
+
+        // Handle duplicate key error gracefully if race condition (e.g. fcmToken)
         if (createError.code === 11000) {
           return NextResponse.json({ success: true, message: 'Subscription already exists' });
         }

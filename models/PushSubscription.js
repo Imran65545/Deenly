@@ -7,8 +7,8 @@ const PushSubscriptionSchema = new mongoose.Schema({
     },
     endpoint: {
         type: String,
-        unique: true,
-        sparse: true // Allows multiple null values
+        // unique: true, // Removed to prevent FCM conflict (multiple nulls)
+        // sparse: true
     },
     fcmToken: {
         type: String,
