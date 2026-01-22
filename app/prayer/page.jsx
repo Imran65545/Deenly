@@ -343,13 +343,19 @@ export default function PrayerTimes() {
     // Subscribe to push notifications
     const subscribeToPushNotifications = async () => {
         try {
+            console.log('subscribeToPushNotifications called');
+            console.log('NEXT_PUBLIC_VAPID_PUBLIC_KEY env var:', process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY);
+            
             if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
                 console.log('Push notifications not supported');
                 return;
             }
 
+            console.log('VAPID_PUBLIC_KEY value:', VAPID_PUBLIC_KEY);
+            console.log('VAPID_PUBLIC_KEY is empty?', !VAPID_PUBLIC_KEY);
+
             if (!VAPID_PUBLIC_KEY) {
-                console.log('VAPID key not configured');
+                console.log('VAPID key not configured - push will be skipped');
                 return;
             }
 
@@ -360,14 +366,17 @@ export default function PrayerTimes() {
 
             if (!subscription) {
                 try {
+                    console.log('Attempting to subscribe with VAPID key length:', VAPID_PUBLIC_KEY.length);
                     const uint8Array = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
+                    console.log('Uint8Array created, length:', uint8Array.length);
+                    
                     subscription = await registration.pushManager.subscribe({
                         userVisibleOnly: true,
                         applicationServerKey: uint8Array
                     });
-                    console.log('Push subscription created');
+                    console.log('Push subscription created successfully');
                 } catch (subError) {
-                    console.log('Push notifications unavailable (requires HTTPS):', subError.message);
+                    console.error('Push subscribe failed:', subError.name, subError.message);
                     return; // Gracefully fail - local notifications will still work
                 }
             }
@@ -388,7 +397,7 @@ export default function PrayerTimes() {
 
             setPushEndpoint(subscription?.endpoint);
         } catch (error) {
-            console.log('Push notification setup skipped:', error.message);
+            console.error('Push notification setup error:', error.message);
         }
     };
 
