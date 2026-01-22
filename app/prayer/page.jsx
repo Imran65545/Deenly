@@ -51,6 +51,7 @@ export default function PrayerTimes() {
     const [currentAudio, setCurrentAudio] = useState(null);
     const [pushEndpoint, setPushEndpoint] = useState(null);
     const [notificationToast, setNotificationToast] = useState(null); // New state for custom toast
+    const [showManualPlay, setShowManualPlay] = useState(false);
 
     useEffect(() => {
         // Check query params for playAudio (triggered by notification click)
@@ -59,7 +60,7 @@ export default function PrayerTimes() {
             if (params.get('playAudio') === '1') {
                 // Remove param from URL without reload
                 window.history.replaceState({}, '', '/prayer');
-                // Allow a small delay for user interaction/focus
+                // Try to play automatically
                 setTimeout(() => playAdhanAudio(), 1000);
             }
         }
@@ -182,13 +183,20 @@ export default function PrayerTimes() {
             const audio = new Audio('/adhan.mp3');
             setCurrentAudio(audio);
 
-            audio.play().catch(err => {
-                console.error('Error playing adhan audio:', err);
-            });
+            const playPromise = audio.play();
+
+            if (playPromise !== undefined) {
+                playPromise.catch(err => {
+                    console.error('Autoplay blocked:', err);
+                    // Show manual play button if autoplay is blocked
+                    setShowManualPlay(true);
+                });
+            }
 
             // Auto-stop after audio ends
             audio.onended = () => {
                 setCurrentAudio(null);
+                setShowManualPlay(false);
             };
         } catch (err) {
             console.error('Error creating audio:', err);
