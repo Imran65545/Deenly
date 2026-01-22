@@ -8,7 +8,7 @@ const PRAYER_NAMES = ["Fajr", "Sunrise", "Dhuhr", "Asr", "Maghrib", "Isha"];
 const NOTIFICATION_PRAYERS = ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"];
 
 // VAPID Public Key for Web Push
-const VAPID_PUBLIC_KEY = 'BO1V4WL4Wrqh86WdDYUNiLmE6x0tq30KX9Weykdg0LNW126iRkBWxNTJ_eM0e5fLK9NqMx7Yl3N9K93iR90Y91U';
+const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || '';
 
 const PRAYER_ICONS = {
     Fajr: "🌙",
@@ -348,17 +348,28 @@ export default function PrayerTimes() {
                 return;
             }
 
+            if (!VAPID_PUBLIC_KEY) {
+                console.log('VAPID key not configured');
+                return;
+            }
+
             const registration = await navigator.serviceWorker.ready;
 
             // Check if already subscribed
             let subscription = await registration.pushManager.getSubscription();
 
             if (!subscription) {
-                // Subscribe to push
-                subscription = await registration.pushManager.subscribe({
-                    userVisibleOnly: true,
-                    applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
-                });
+                try {
+                    const uint8Array = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
+                    subscription = await registration.pushManager.subscribe({
+                        userVisibleOnly: true,
+                        applicationServerKey: uint8Array
+                    });
+                    console.log('Push subscription created');
+                } catch (subError) {
+                    console.log('Push notifications unavailable (requires HTTPS):', subError.message);
+                    return; // Gracefully fail - local notifications will still work
+                }
             }
 
             // Send subscription to server
@@ -373,14 +384,11 @@ export default function PrayerTimes() {
                     notificationsEnabled,
                     adhanAudioEnabled
                 })
-            });
+            }).catch(err => console.log('Subscription save failed:', err));
 
-            console.log('Push subscription successful');
-
-            // Store endpoint for test demo
-            setPushEndpoint(subscription.endpoint);
+            setPushEndpoint(subscription?.endpoint);
         } catch (error) {
-            console.error('Error subscribing to push:', error);
+            console.log('Push notification setup skipped:', error.message);
         }
     };
 
