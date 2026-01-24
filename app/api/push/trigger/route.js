@@ -23,11 +23,7 @@ export async function GET(request) {
             });
         }
 
-        const now = new Date();
-        const currentHour = now.getHours();
-        const currentMinute = now.getMinutes();
-        const currentTime = `${currentHour}:${String(currentMinute).padStart(2, '0')}`;
-
+        const utcNow = new Date();
         let sentCount = 0;
         const expiredSubscriptions = [];
 
@@ -35,25 +31,44 @@ export async function GET(request) {
         for (const sub of subscriptions) {
             try {
                 // Fetch prayer times for this user's location
-                const prayerTimes = await fetchPrayerTimes(sub.location);
+                const prayerData = await fetchPrayerTimes(sub.location);
 
-                if (!prayerTimes) continue;
+                if (!prayerData) continue;
 
-                // Check if current time matches any prayer time
+                const { timings, timezone } = prayerData;
+
+                // Calculate User's Local Time
+                // API usually returns timezone like "Asia/Kolkata" or "UTC"
+                // We use this to convert Server UTC now to User Local now
+                const userTimeStr = utcNow.toLocaleTimeString('en-GB', {
+                    timeZone: timezone,
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: false
+                });
+                // userTimeStr will be "19:28" (HH:MM)
+
+                // Check if current user time matches any prayer time
                 const matchingPrayer = PRAYER_NAMES.find(prayer => {
-                    const prayerTime = prayerTimes[prayer];
+                    const prayerTime = timings[prayer];
                     if (!prayerTime) return false;
 
-                    const [hours, minutes] = prayerTime.split(':');
-                    const prayerTimeStr = `${parseInt(hours)}:${minutes}`;
+                    // Aladhan returns "19:28 (IST)" sometimes, or just "19:28"
+                    // We need to clean parsing just in case
+                    const cleanPrayerTime = prayerTime.split(' ')[0]; //Remove (IST) if exists
+                    const [hours, minutes] = cleanPrayerTime.split(':');
 
-                    return prayerTimeStr === currentTime;
+                    // Normalize to HH:MM (padding zeros)
+                    const normalizedPrayerTime = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+
+                    return normalizedPrayerTime === userTimeStr;
                 });
 
                 if (matchingPrayer) {
                     // Check if we already sent notification in the last minute
+                    // This prevents double send if job runs twice quickly
                     if (sub.lastNotificationSent) {
-                        const timeSinceLastNotification = now - new Date(sub.lastNotificationSent);
+                        const timeSinceLastNotification = utcNow - new Date(sub.lastNotificationSent);
                         if (timeSinceLastNotification < 60000) {
                             continue; // Skip if sent less than 1 minute ago
                         }
@@ -68,7 +83,7 @@ export async function GET(request) {
                             url: '/prayer',
                             playAudio: sub.adhanAudioEnabled ? 'true' : 'false',
                             prayer: matchingPrayer,
-                            time: prayerTimes[matchingPrayer]
+                            time: timings[matchingPrayer]
                         }
                     };
 
@@ -121,7 +136,7 @@ export async function GET(request) {
                             badge: payload.badge,
                             playAudio: sub.adhanAudioEnabled, // Legacy SW used this prop directly
                             prayer: matchingPrayer,
-                            time: prayerTimes[matchingPrayer]
+                            time: timings[matchingPrayer]
                         };
                         result = await sendPushNotification(pushSubscription, vapidPayload);
                     }
@@ -129,7 +144,7 @@ export async function GET(request) {
                     if (result.success) {
                         sentCount++;
                         // Update last notification sent time
-                        sub.lastNotificationSent = now;
+                        sub.lastNotificationSent = utcNow;
                         await sub.save();
                     } else if (result.expired) {
                         // Mark for deletion
@@ -153,7 +168,7 @@ export async function GET(request) {
             message: `Checked ${subscriptions.length} subscriptions`,
             sent: sentCount,
             expired: expiredSubscriptions.length,
-            currentTime
+            serverUtcTime: utcNow.toISOString() // Helpful for debugging
         });
 
     } catch (error) {
@@ -185,7 +200,10 @@ async function fetchPrayerTimes(location) {
         const data = await response.json();
 
         if (data.code === 200 && data.data) {
-            return data.data.timings;
+            return {
+                timings: data.data.timings,
+                timezone: data.data.meta.timezone
+            };
         }
 
         return null;
