@@ -141,7 +141,8 @@ function QuizContent() {
             });
 
             if (!res.ok) {
-                throw new Error("Failed to fetch hint");
+                const errorData = await res.json();
+                throw new Error(errorData.error || errorData.message || "Failed to fetch hint");
             }
 
             const data = await res.json();
