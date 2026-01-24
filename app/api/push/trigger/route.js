@@ -4,7 +4,13 @@ import PushSubscription from '@/models/PushSubscription';
 import { sendPushNotification } from '@/lib/webpush';
 import admin from '@/lib/firebase-admin';
 
-const PRAYER_NAMES = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
+const PRAYER_QUOTES = {
+    Fajr: "The world sleeps, but success rises. Start your day with light.",
+    Dhuhr: "Half your day is done. Pause, breathe, and reset with your Creator.",
+    Asr: "Time is like melting ice. Don't let this moment slip away.",
+    Maghrib: "The sun sets on another day. End it with gratitude and prayer.",
+    Isha: "Wash away the world's stress. Find peace before you sleep."
+};
 
 export async function GET(request) {
     try {
@@ -123,9 +129,12 @@ export async function GET(request) {
                         }
                     }
 
+                    // Select a random or fixed quote for the prayer
+                    const quote = PRAYER_QUOTES[matchingPrayer] || `It's time for ${matchingPrayer} prayer`;
+
                     const payload = {
-                        title: 'Prayer Time',
-                        body: `It's time for ${matchingPrayer} prayer`,
+                        title: `${matchingPrayer} Time!`, // Bold title style
+                        body: quote,
                         icon: '/icon.png',
                         badge: '/icon.png',
                         data: {
